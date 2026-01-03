@@ -12,7 +12,13 @@ import os
 load_dotenv()
 
 # Import routers
-from routers import reports, insights
+from routers import reports, insights, users
+
+# Initialize database
+from database import Base, engine
+from models import db_models
+Base.metadata.create_all(bind=engine)
+print("✓ Database tables initialized")
 
 # Create FastAPI app
 app = FastAPI(
@@ -37,6 +43,7 @@ app.add_middleware(
 # Include routers
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(insights.router, prefix="/api/insights", tags=["Insights"])
+app.include_router(users.router, prefix="/api/users", tags=["Users"])
 
 
 @app.get("/")

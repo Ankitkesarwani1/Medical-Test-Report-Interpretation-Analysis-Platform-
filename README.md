@@ -5,16 +5,21 @@ A comprehensive AI-powered platform to help patients understand their medical te
 ![Tech Stack](https://img.shields.io/badge/Next.js-15-black?logo=next.js)
 ![Tech Stack](https://img.shields.io/badge/FastAPI-0.109-009688?logo=fastapi)
 ![Tech Stack](https://img.shields.io/badge/OpenAI-GPT--4o-412991?logo=openai)
-![Tech Stack](https://img.shields.io/badge/Supabase-Storage%20%26%20DB-3ECF8E?logo=supabase)
+![Tech Stack](https://img.shields.io/badge/SQLite-Local%20DB-003B57?logo=sqlite)
+![Tech Stack](https://img.shields.io/badge/Supabase-Auth-3ECF8E?logo=supabase)
 
 ## ✨ Features
 
 - **📄 Report Upload & Analysis** - Upload PDF or image medical reports for instant AI analysis
+- **📅 Report Date Selection** - Specify the date of the medical report (defaults to today)
 - **🔬 Medical Term Simplification** - Complex terminology explained in simple language
 - **🚨 Abnormal Value Detection** - Automatic flagging with color-coded indicators (🟢🟡🔴)
 - **💡 Health Insights & Alerts** - Clear guidance for values needing attention
 - **📊 Visual Analytics** - Interactive charts for understanding health data
 - **🏥 Health Score** - Overall health score (0-100) based on test results
+- **👨‍👩‍👧 Family Profiles** - Manage health profiles for family members
+- **📈 Historical Tracking** - Track and compare test results over time
+- **💬 AI Follow-up Chat** - Ask questions about your results
 
 ## 🛠️ Tech Stack
 
@@ -22,9 +27,9 @@ A comprehensive AI-powered platform to help patients understand their medical te
 |-------|------------|
 | Frontend | Next.js 15, Tailwind CSS, Framer Motion, Recharts |
 | Backend | FastAPI (Python) |
-| AI | OpenAI GPT-4o Vision |
-| Database | Supabase (PostgreSQL) |
-| Storage | Supabase Storage |
+| AI | OpenAI GPT-4 / GPT-3.5 |
+| Database | SQLite (local, zero configuration) |
+| Auth | Supabase Auth (free tier) |
 | Hosting | Vercel (Frontend), Any Python host (Backend) |
 
 ## 🚀 Quick Start
@@ -34,7 +39,7 @@ A comprehensive AI-powered platform to help patients understand their medical te
 - Node.js 18+
 - Python 3.10+
 - OpenAI API Key
-- Supabase Account (optional for demo)
+- Supabase Account (free - for authentication only)
 
 ### Frontend Setup
 
@@ -42,7 +47,7 @@ A comprehensive AI-powered platform to help patients understand their medical te
 cd frontend
 npm install
 cp .env.example .env.local
-# Edit .env.local with your credentials
+# Edit .env.local with your Supabase credentials
 npm run dev
 ```
 
@@ -58,16 +63,30 @@ source venv/bin/activate
 
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env with your credentials
-uvicorn app.main:app --reload --port 8000
+# Edit .env with your OpenAI API key
+cd app
+python -m uvicorn main:app --reload --port 8000
 ```
 
-### Database Setup
+### Database
 
-1. Create a Supabase project at [supabase.com](https://supabase.com)
-2. Go to SQL Editor and run the contents of `supabase/schema.sql`
-3. Create a storage bucket named `medical-reports`
-4. Copy your credentials to the `.env` files
+The backend uses **SQLite** - no setup required! The database file `medinsight.db` is created automatically when you start the server.
+
+To view the database:
+- Install VS Code extension "SQLite Viewer"
+- Or use: `sqlite3 medinsight.db` then `.tables` and `SELECT * FROM reports;`
+
+### Authentication (Supabase)
+
+1. Create a free Supabase project at [supabase.com](https://supabase.com)
+2. Get your project URL and anon key from Settings > API
+3. Add to `frontend/.env.local`:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=your_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key
+   ```
+
+> **Note:** Supabase is only used for authentication. All data is stored locally in SQLite.
 
 ## 📁 Project Structure
 
@@ -76,26 +95,36 @@ medicalRepoInterpret/
 ├── frontend/                 # Next.js application
 │   ├── src/
 │   │   ├── app/             # App router pages
+│   │   │   ├── dashboard/   # Report upload & analysis
+│   │   │   ├── history/     # Historical tracking
+│   │   │   ├── compare/     # Compare reports
+│   │   │   ├── family/      # Family members
+│   │   │   ├── profile/     # Health profile
+│   │   │   └── auth/        # Authentication
 │   │   ├── components/      # React components
-│   │   │   ├── ui/          # Header, Footer
-│   │   │   ├── upload/      # Upload zone
-│   │   │   ├── results/     # Test cards, health gauge
-│   │   │   └── charts/      # Recharts visualizations
-│   │   └── lib/             # API client, Supabase
-│   └── public/
+│   │   ├── contexts/        # Auth context
+│   │   └── lib/             # API client
 │
 ├── backend/                  # FastAPI application
 │   ├── app/
 │   │   ├── main.py          # Entry point
+│   │   ├── database.py      # SQLite config
 │   │   ├── routers/         # API endpoints
+│   │   │   ├── reports.py   # Report upload/analysis
+│   │   │   ├── insights.py  # AI insights
+│   │   │   └── users.py     # Profile & family
 │   │   ├── services/        # Business logic
-│   │   ├── models/          # Pydantic schemas
+│   │   ├── models/          # SQLAlchemy models
 │   │   └── prompts/         # AI prompts
 │   └── requirements.txt
-│
-└── supabase/
-    └── schema.sql           # Database schema
 ```
+
+## 🔐 Data Privacy
+
+- **Anonymous users**: Can analyze reports but data is NOT saved
+- **Logged in users**: Reports and results saved to local SQLite database
+- **No cloud storage**: All data stays on your machine
+- **Authentication only**: Supabase is used only for user login
 
 ## 🎨 UI Features
 
@@ -103,12 +132,6 @@ medicalRepoInterpret/
 - **Responsive** - Works on desktop, tablet, and mobile
 - **Animations** - Smooth transitions with Framer Motion
 - **Color-coded** - Status indicators for easy reading
-
-## 🔒 Security
-
-- No data stored permanently (optional Supabase storage)
-- HIPAA compliance considerations
-- Medical disclaimer prominently displayed
 
 ## ⚠️ Disclaimer
 

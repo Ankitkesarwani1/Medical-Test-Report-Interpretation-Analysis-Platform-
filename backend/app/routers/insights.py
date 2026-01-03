@@ -170,3 +170,80 @@ async def get_chart_data(report_id: str):
     except Exception as e:
         print(f"Error getting chart data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ask")
+async def ask_followup_question(question_data: dict):
+    """
+    Answer follow-up questions about test results
+    Uses AI to provide context-aware answers based on the report
+    """
+    try:
+        report_id = question_data.get("report_id")
+        question = question_data.get("question")
+        
+        if not question:
+            raise HTTPException(status_code=400, detail="Question is required")
+        
+        # Get test results for context (if report_id provided)
+        context = ""
+        if report_id:
+            test_results = await supabase_service.get_test_results(report_id)
+            if test_results:
+                context = "\\n".join([
+                    f"- {t['test_name']}: {t['observed_value']} {t.get('unit', '')} ({t.get('status', 'UNKNOWN')})"
+                    for t in test_results
+                ])
+        
+        # Generate answer using OpenAI
+        if not openai_service.client:
+            answer = get_fallback_answer(question)
+        else:
+            prompt = f"""You are a helpful health assistant. Answer the patient's question about their test results.
+IMPORTANT RULES:
+- Be educational and patient-friendly
+- Explain what tests measure and what results generally mean
+- Do NOT diagnose conditions
+- Do NOT recommend specific medications
+- Always suggest consulting a doctor for personalized advice
+
+{f"Patient's test results:\\n{context}" if context else ""}
+
+Patient's question: {question}
+
+Provide a helpful, educational response:"""
+            
+            response = openai_service.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful health education assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=300,
+                temperature=0.7
+            )
+            answer = response.choices[0].message.content.strip()
+        
+        return {"question": question, "answer": answer}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error answering question: {e}")
+        return {"question": question_data.get("question", ""), "answer": "I'm sorry, I couldn't process your question. Please try again or consult your healthcare provider."}
+
+
+def get_fallback_answer(question: str) -> str:
+    """Fallback answers when OpenAI is not available"""
+    q = question.lower()
+    
+    if 'cholesterol' in q or 'ldl' in q:
+        return "LDL (low-density lipoprotein) is often called 'bad' cholesterol. High levels can contribute to plaque buildup in arteries. Lifestyle changes like diet and exercise can help manage cholesterol levels. Please consult your doctor for personalized advice."
+    
+    if 'hemoglobin' in q or 'anemia' in q:
+        return "Hemoglobin carries oxygen in your blood. Low levels may indicate anemia, which can cause fatigue. Common causes include iron deficiency or other nutritional deficiencies. Your doctor can help determine the specific cause."
+    
+    if 'glucose' in q or 'sugar' in q or 'diabetes' in q:
+        return "Blood glucose indicates how your body processes sugar. Elevated levels may suggest prediabetes or diabetes. Lifestyle modifications including diet and exercise are often recommended. Discuss your results with your healthcare provider."
+    
+    return "I'd recommend discussing this specific question with your healthcare provider who can review your complete medical history and provide personalized guidance."

@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useCallback, useState } from 'react';
-import { Upload, FileText, X, Loader2 } from 'lucide-react';
+import { Upload, FileText, X, Loader2, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface UploadZoneProps {
-    onFileSelect: (file: File) => void;
+    onFileSelect: (file: File, reportDate: string) => void;
     isUploading?: boolean;
     acceptedTypes?: string[];
 }
@@ -18,6 +18,10 @@ export default function UploadZone({
     const [isDragOver, setIsDragOver] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [reportDate, setReportDate] = useState(() => {
+        // Default to today's date in YYYY-MM-DD format
+        return new Date().toISOString().split('T')[0];
+    });
 
     const validateFile = (file: File): boolean => {
         const validTypes = [
@@ -61,10 +65,10 @@ export default function UploadZone({
             const file = e.dataTransfer.files[0];
             if (file && validateFile(file)) {
                 setSelectedFile(file);
-                onFileSelect(file);
+                onFileSelect(file, reportDate);
             }
         },
-        [onFileSelect]
+        [onFileSelect, reportDate]
     );
 
     const handleFileChange = useCallback(
@@ -72,10 +76,10 @@ export default function UploadZone({
             const file = e.target.files?.[0];
             if (file && validateFile(file)) {
                 setSelectedFile(file);
-                onFileSelect(file);
+                onFileSelect(file, reportDate);
             }
         },
-        [onFileSelect]
+        [onFileSelect, reportDate]
     );
 
     const clearFile = () => {
@@ -85,6 +89,22 @@ export default function UploadZone({
 
     return (
         <div className="w-full max-w-2xl mx-auto">
+            {/* Date Picker */}
+            <div className="mb-4 flex items-center justify-center gap-3">
+                <label className="flex items-center gap-2 text-zinc-400 text-sm">
+                    <Calendar className="w-4 h-4" />
+                    Report Date:
+                </label>
+                <input
+                    type="date"
+                    value={reportDate}
+                    onChange={(e) => setReportDate(e.target.value)}
+                    className="px-3 py-2 rounded-xl bg-zinc-800 border border-white/10 text-white focus:border-indigo-500 focus:outline-none text-sm"
+                    style={{ colorScheme: 'dark' }}
+                    disabled={isUploading}
+                />
+            </div>
+
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}

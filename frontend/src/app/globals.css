@@ -12,36 +12,36 @@
   --bg-tertiary: #1a1a24;
   --bg-glass: rgba(255, 255, 255, 0.03);
   --bg-glass-hover: rgba(255, 255, 255, 0.06);
-  
+
   /* Accent Colors */
   --accent-primary: #6366f1;
   --accent-secondary: #8b5cf6;
   --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-  
+
   /* Status Colors */
   --status-normal: #10b981;
   --status-warning: #f59e0b;
   --status-critical: #ef4444;
   --status-unknown: #6b7280;
-  
+
   /* Text Colors */
   --text-primary: #ffffff;
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
-  
+
   /* Border Colors */
   --border-subtle: rgba(255, 255, 255, 0.08);
   --border-accent: rgba(99, 102, 241, 0.5);
-  
+
   /* Shadows */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
   --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.15);
-  
+
   /* Glass effect */
   --glass-blur: blur(20px);
-  
+
   /* Animation timings */
   --transition-fast: 150ms;
   --transition-normal: 250ms;
@@ -84,7 +84,7 @@ body::before {
   left: 0;
   width: 100%;
   height: 100%;
-  background: 
+  background:
     radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15), transparent),
     radial-gradient(ellipse 60% 40% at 100% 100%, rgba(139, 92, 246, 0.1), transparent);
   pointer-events: none;
@@ -95,6 +95,33 @@ body::before {
 ::selection {
   background: rgba(99, 102, 241, 0.3);
   color: var(--text-primary);
+}
+
+/* Fix native select dropdown styling */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 40px !important;
+}
+
+select option {
+  background-color: #1a1a24;
+  color: #ffffff;
+  padding: 12px;
+}
+
+/* Fix date input calendar icon for dark mode */
+input[type="date"] {
+  color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.8);
+  cursor: pointer;
 }
 
 /* Scrollbar */
@@ -168,7 +195,7 @@ body::before {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%, transparent 100%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 50%, transparent 100%);
   opacity: 0;
   transition: opacity var(--transition-normal) ease;
 }
@@ -273,9 +300,17 @@ body::before {
   transition: stroke-dashoffset 1s ease-out;
 }
 
-.health-score-healthy { stroke: var(--status-normal); }
-.health-score-borderline { stroke: var(--status-warning); }
-.health-score-critical { stroke: var(--status-critical); }
+.health-score-healthy {
+  stroke: var(--status-normal);
+}
+
+.health-score-borderline {
+  stroke: var(--status-warning);
+}
+
+.health-score-critical {
+  stroke: var(--status-critical);
+}
 
 /* =====================================================
    Animations
@@ -285,6 +320,7 @@ body::before {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -292,18 +328,24 @@ body::before {
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
   }
+
   50% {
     box-shadow: 0 0 40px rgba(99, 102, 241, 0.4);
   }
 }
 
 @keyframes float {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0);
   }
+
   50% {
     transform: translateY(-10px);
   }
@@ -313,6 +355,7 @@ body::before {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -335,11 +378,25 @@ body::before {
 }
 
 /* Stagger animations */
-.stagger-1 { animation-delay: 0.1s; }
-.stagger-2 { animation-delay: 0.2s; }
-.stagger-3 { animation-delay: 0.3s; }
-.stagger-4 { animation-delay: 0.4s; }
-.stagger-5 { animation-delay: 0.5s; }
+.stagger-1 {
+  animation-delay: 0.1s;
+}
+
+.stagger-2 {
+  animation-delay: 0.2s;
+}
+
+.stagger-3 {
+  animation-delay: 0.3s;
+}
+
+.stagger-4 {
+  animation-delay: 0.4s;
+}
+
+.stagger-5 {
+  animation-delay: 0.5s;
+}
 
 /* =====================================================
    Loading Spinner

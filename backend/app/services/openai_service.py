@@ -1,11 +1,12 @@
 """
-OpenAI Service
-Handles all interactions with OpenAI API for medical report analysis
-Uses TEXT-ONLY analysis (no Vision API) - budget friendly!
+OpenAI Service with Tesseract OCR Fallback
+TEXT EXTRACTION: PyPDF2 → Tesseract OCR (for scanned PDFs)
+AI ANALYSIS: GPT-3.5-turbo (budget-friendly)
 """
 
 import os
 import json
+import re
 from openai import OpenAI
 from io import BytesIO
 from prompts.medical_prompts import (
@@ -22,7 +23,7 @@ from models.schemas import (
 
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """Extract text content from PDF bytes"""
+    """Extract text from digital PDF using PyPDF2"""
     try:
         from PyPDF2 import PdfReader
         reader = PdfReader(BytesIO(pdf_bytes))
@@ -31,60 +32,131 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
             page_text = page.extract_text()
             if page_text:
                 text += page_text + "\n"
-        return text.strip()
+        
+        extracted_text = text.strip()
+        print(f"✓ PyPDF2 extracted {len(extracted_text)} characters")
+        return extracted_text
     except Exception as e:
-        print(f"Error extracting PDF text: {e}")
+        print(f"✗ PyPDF2 extraction failed: {e}")
         return ""
+
+
+def extract_text_with_ocr(pdf_bytes: bytes) -> str:
+    """Extract text from scanned PDF using Tesseract OCR"""
+    try:
+        import pytesseract
+        from pdf2image import convert_from_bytes
+        from PIL import Image
+        
+        print("⚡ Attempting OCR with Tesseract...")
+        
+        # Convert PDF pages to images
+        images = convert_from_bytes(pdf_bytes, dpi=300)
+        
+        text = ""
+        for i, image in enumerate(images):
+            print(f"   Processing page {i+1}/{len(images)}...")
+            page_text = pytesseract.image_to_string(image, lang='eng')
+            text += page_text + "\n"
+        
+        extracted_text = text.strip()
+        print(f"✓ OCR extracted {len(extracted_text)} characters from {len(images)} pages")
+        return extracted_text
+        
+    except ImportError:
+        print("✗ Tesseract not installed. Install: sudo apt-get install tesseract-ocr")
+        return ""
+    except Exception as e:
+        print(f"✗ OCR extraction failed: {e}")
+        return ""
+
+
+def clean_medical_text(text: str) -> str:
+    """Clean and normalize extracted medical text"""
+    if not text:
+        return ""
+    
+    # Remove excessive whitespace
+    text = re.sub(r'\s+', ' ', text)
+    
+    # Remove common PDF artifacts
+    text = re.sub(r'Page \d+ of \d+', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\d{1,2}/\d{1,2}/\d{2,4}', lambda m: f" {m.group()} ", text)  # Preserve dates
+    
+    # Normalize units
+    text = text.replace('mg / dl', 'mg/dL')
+    text = text.replace('g / dl', 'g/dL')
+    text = text.replace('mg/dl', 'mg/dL')
+    text = text.replace('g/dl', 'g/dL')
+    
+    # Remove multiple spaces again after replacements
+    text = re.sub(r'\s+', ' ', text)
+    
+    return text.strip()
 
 
 class OpenAIService:
     def __init__(self):
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key or api_key == "your_openai_api_key_here":
-            print("Warning: OpenAI API key not configured!")
+            print("⚠️  OpenAI API key not configured!")
             self.client = None
         else:
             self.client = OpenAI(api_key=api_key)
+            print("✓ OpenAI client initialized")
         
-        # Using GPT-3.5-turbo - MUCH cheaper than GPT-4!
-        self.model = "gpt-3.5-turbo"
+        self.model = "gpt-3.5-turbo"  # Budget-friendly model
     
     async def extract_report_data(self, file_url: str = None, file_bytes: bytes = None, file_type: str = "application/pdf") -> ExtractedReportData:
         """
-        Extract structured data from a medical report PDF
-        Uses TEXT extraction only - no Vision API
+        Extract structured data from medical report
+        WORKFLOW: PyPDF2 → Tesseract OCR (fallback) → Clean → AI Analysis
         """
         if not self.client:
-            raise Exception("OpenAI API key not configured. Please add OPENAI_API_KEY to your .env file.")
+            raise Exception("OpenAI API key not configured. Add OPENAI_API_KEY to .env")
+        
+        if not file_bytes:
+            raise Exception("No file provided")
         
         try:
-            # Extract text from PDF
-            if file_bytes:
-                pdf_text = extract_text_from_pdf(file_bytes)
-                
-                if not pdf_text or len(pdf_text) < 50:
-                    raise Exception("Could not extract text from PDF. The PDF might be scanned/image-based. Please try a text-based PDF.")
-                
-                print(f"Extracted {len(pdf_text)} characters from PDF")
-            else:
-                raise Exception("No file provided for analysis")
+            # STEP 1: Try PyPDF2 first (digital PDFs)
+            print("\n=== TEXT EXTRACTION ===")
+            extracted_text = extract_text_from_pdf(file_bytes)
             
-            # Use text-based analysis
+            # STEP 2: Fallback to OCR if text is empty or too short
+            if len(extracted_text) < 100:
+                print("⚠️  Low text extracted, trying OCR fallback...")
+                extracted_text = extract_text_with_ocr(file_bytes)
+            
+            if len(extracted_text) < 50:
+                raise Exception(
+                    "Could not extract sufficient text from PDF. "
+                    "Ensure it's a text-based PDF or install Tesseract for OCR support."
+                )
+            
+            # STEP 3: Clean and normalize text
+            print("\n=== TEXT CLEANING ===")
+            cleaned_text = clean_medical_text(extracted_text)
+            print(f"✓ Cleaned text: {len(cleaned_text)} characters")
+            
+            # STEP 4: AI Analysis - Extract structured data
+            print("\n=== AI ANALYSIS ===")
             user_content = f"""{USER_PROMPT_EXTRACT}
 
-Here is the extracted text from the medical report:
+Here is the extracted medical report text:
 
 ---
-{pdf_text[:8000]}
+{cleaned_text[:8000]}
 ---
 
-Please analyze this text and extract the medical test data as JSON."""
+Extract the medical test data as JSON."""
             
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT_EXTRACT},
                 {"role": "user", "content": user_content}
             ]
             
+            print("🤖 Sending to OpenAI GPT-3.5...")
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -94,7 +166,7 @@ Please analyze this text and extract the medical test data as JSON."""
             
             content = response.choices[0].message.content
             
-            # Clean up markdown formatting
+            # Clean JSON response
             if "```json" in content:
                 content = content.split("```json")[1]
             if "```" in content:
@@ -105,11 +177,10 @@ Please analyze this text and extract the medical test data as JSON."""
             try:
                 data = json.loads(content)
             except json.JSONDecodeError as e:
-                print(f"JSON parse error: {e}")
-                print(f"Raw content: {content[:500]}")
-                raise Exception("Failed to parse AI response. The report format may not be recognized.")
+                print(f"✗ JSON parse error: {e}")
+                raise Exception("AI response format error. The report may have an unusual format.")
             
-            # Convert to Pydantic model
+            # Convert to Pydantic models
             patient_info = None
             if data.get("patient_info"):
                 patient_info = PatientInfo(**data["patient_info"])
@@ -131,16 +202,17 @@ Please analyze this text and extract the medical test data as JSON."""
                 ))
             
             if not tests:
-                raise Exception("No test results found in the report. Please ensure you uploaded a valid medical lab report.")
+                raise Exception("No test results found. Ensure you uploaded a valid medical lab report.")
             
+            print(f"✓ Extracted {len(tests)} tests successfully\n")
             return ExtractedReportData(patient_info=patient_info, tests=tests)
             
         except Exception as e:
-            print(f"Error extracting report data: {e}")
+            print(f"✗ Error: {e}")
             raise e
     
     async def classify_values(self, tests: list[TestResult]) -> list[TestResult]:
-        """Classify test values as NORMAL, LOW, HIGH, or UNKNOWN"""
+        """Classify test values as NORMAL/LOW/HIGH and assign severity"""
         if not self.client:
             for test in tests:
                 test.status = TestStatus.UNKNOWN
@@ -196,25 +268,22 @@ Please analyze this text and extract the medical test data as JSON."""
             return classified_tests
             
         except Exception as e:
-            print(f"Error classifying values: {e}")
+            print(f"Classification error: {e}")
             for test in tests:
                 test.status = TestStatus.UNKNOWN
                 test.severity = Severity.GRAY
             return tests
     
     async def generate_explanation(self, test_name: str, value: str, unit: str, status: str) -> str:
-        """Generate patient-friendly explanation"""
+        """Generate patient-friendly explanation (only for abnormal values)"""
         if not self.client:
-            return "Please consult your healthcare provider for interpretation."
+            return "Please consult your healthcare provider."
         
         try:
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT_EXPLAIN},
                 {"role": "user", "content": USER_PROMPT_EXPLAIN.format(
-                    test_name=test_name,
-                    value=value,
-                    unit=unit or "",
-                    status=status
+                    test_name=test_name, value=value, unit=unit or "", status=status
                 )}
             ]
             
@@ -228,11 +297,11 @@ Please analyze this text and extract the medical test data as JSON."""
             return response.choices[0].message.content.strip()
             
         except Exception as e:
-            print(f"Error generating explanation: {e}")
+            print(f"Explanation error: {e}")
             return "Please consult your healthcare provider."
     
     async def generate_alert(self, test_name: str, status: str, severity: str) -> str:
-        """Generate health alert message"""
+        """Generate health alert for critical values"""
         if not self.client:
             return "Please consult your healthcare provider."
         
@@ -240,9 +309,7 @@ Please analyze this text and extract the medical test data as JSON."""
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT_ALERT},
                 {"role": "user", "content": USER_PROMPT_ALERT.format(
-                    test_name=test_name,
-                    status=status,
-                    severity=severity
+                    test_name=test_name, status=status, severity=severity
                 )}
             ]
             
@@ -256,17 +323,17 @@ Please analyze this text and extract the medical test data as JSON."""
             return response.choices[0].message.content.strip()
             
         except Exception as e:
-            print(f"Error generating alert: {e}")
+            print(f"Alert error: {e}")
             return "Please consult your healthcare provider."
     
     async def generate_summary(self, tests: list[TestResult]) -> dict:
-        """Generate overall health summary"""
+        """Generate overall health summary and score"""
         normal_count = sum(1 for t in tests if t.status == TestStatus.NORMAL)
         health_score = int((normal_count / len(tests)) * 100) if tests else 0
         
         if not self.client:
             return {
-                "summary": "Please review your results with a healthcare provider.",
+                "summary": "Please review with healthcare provider.",
                 "health_score": health_score,
                 "attention_areas": []
             }
@@ -306,9 +373,9 @@ Please analyze this text and extract the medical test data as JSON."""
             return json.loads(content.strip())
             
         except Exception as e:
-            print(f"Error generating summary: {e}")
+            print(f"Summary error: {e}")
             return {
-                "summary": "Please review your results with a healthcare provider.",
+                "summary": "Please review with healthcare provider.",
                 "health_score": health_score,
                 "attention_areas": []
             }
