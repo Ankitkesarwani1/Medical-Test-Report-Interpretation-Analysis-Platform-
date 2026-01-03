@@ -8,16 +8,23 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# FORCE SQLite - ignore DATABASE_URL env var for now
-# This creates a local file 'medinsight.db' - no server setup needed
-DATABASE_URL = "sqlite:///./medinsight.db"
+# Check for DATABASE_URL environment variable
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./medinsight.db")
 
-# Create engine for SQLite
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}  # SQLite needs this
-)
-print(f"✓ Using SQLite database: medinsight.db")
+# Fix for Railway/Heroku: SQLAlchemy 2.0+ requires "postgresql://" not "postgres://"
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Ensure SQLite URLs are handled correctly
+if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
+    # SQLite needs this for threading and handles absolute paths in volumes
+    connect_args = {"check_same_thread": False}
+else:
+    connect_args = {}
+
+# Create engine
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
+print(f"✓ Using database: {DATABASE_URL}")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
